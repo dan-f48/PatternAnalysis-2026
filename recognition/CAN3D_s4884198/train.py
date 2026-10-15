@@ -2,18 +2,19 @@ import time
 import torch 
 import torch.nn.functional as F
 from torchmetrics.image import StructuralSimilarityIndexMeasure 
+import matplotlib.pyplot as plt 
 
 from dataset import get_dataloaders
-from modules import BaseModel
+from modules import BaseModel, BaseVAE
 
 ROOT = "C:/Users/danfu/PatternAnalysis-2026/data/"
 EPOCHS = 5
 BATCH_SIZE = 32
 SUBSET = 200 
 NUM_WORKERS = 0
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') #standard device def 
 
 def main(model):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') #standard device def 
     train_loader, validate_loader, test_loader = get_dataloaders(ROOT, batch_size=BATCH_SIZE, subset=SUBSET, num_workers=NUM_WORKERS) #grab data using dataset.py
     #send given model, ssim to device and define adam optimiser
     model = model.to(device) 
@@ -32,7 +33,8 @@ def main(model):
         #loads a batch from the dataloader (subset of 32 shuffled training images)
         for x in train_loader:
             x = x.to(device)
-            loss = F.mse_loss(model(x), x) #MSE of original from model reconstruction 
+            recon, extra_loss = model(x)
+            loss = F.mse_loss(recon, x) + extra_loss #MSE of original from model reconstruction 
             optimiser.zero_grad() #clear old gradients 
             #backpropogate 
             loss.backward() 
@@ -50,7 +52,8 @@ def main(model):
             #loads batches from validation loader and generates SSIM 
             for x in validate_loader:
                 x = x.to(device)
-                ssim.update(model(x), x)
+                recon, _ = model(x)
+                ssim.update(recon, x)
 
         print(f"epoch: {epoch + 1}: train MSE {train_loss:.4f}, validate SSIM {ssim.compute():.3f}, {time.time() - start:.1f} seconds")
 
@@ -61,20 +64,37 @@ def main(model):
     with torch.no_grad():
         #loads batches from test loader and generates SSIM 
         for x  in test_loader:
-            x = x.to(device)
-            ssim.update(model(x), x)
+            recon, _ = model(x)
+            ssim.update(recon, x)
     print(f"test SSIM: {ssim.compute():.3f}")
 
     #stats if i ran it on RANGPUR
     if device.type == "cuda":
         print(f"peak VRAM: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
 
+def save_samples(model, device, path="recon.png", n=6, seed=0):
+    model.eval()
+    torch.manual_seed(seed)
 
+    with torch.no_grad():
+        images = model.sample(n, device=device).cpu()
+
+    fig, axes = plt.subplots(1, n, figsize=(2*n, 4))
+    for ax, img in zip(axes, images):
+        ax.imshow(img.squeese(), cmap="gray", vmin=0, vmax=1)
+        ax.axis("off")
+    plt.suptitle("generated samples")
+    plt.savefig(path)
+    plt.close
     
 def train_basemodel():
     model = BaseModel(latent_dim=64)
     main(model=model)
 
+def train_vae():
+    model = BaseVAE(latent_dim=64)
+    main(model=model)
+    save_samples(model, device, path="vae_sample")
 
 if __name__ == "__main__":
     train_basemodel()
