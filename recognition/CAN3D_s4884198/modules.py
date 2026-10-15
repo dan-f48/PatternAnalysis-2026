@@ -9,7 +9,7 @@ class Encoder(nn.Module):
             nn.Conv2d(1, hidden, 4, stride=2, padding=1), nn.ReLU(),
             nn.Conv2d(hidden, hidden * 2, 4, stride=2, padding=1), nn.ReLU(),
             nn.Conv2d(hidden * 2, hidden * 4, 4, stride=2, padding=1), nn.ReLU(),
-            nn.Conv2d(hidden * 4, latent_dim, 1), nn.ReLU(),
+            nn.Conv2d(hidden * 4, latent_dim, 1), 
         )
 
     def forward(self, x):
