@@ -4,6 +4,8 @@ from torch.utils.data import TensorDataset, DataLoader, Dataset
 import torch.nn.functional as F
 import os 
 import re
+import matplotlib.pyplot as plt 
+
 
 IMG_DIRS = {
     "train": "keras_slices_train",
@@ -89,9 +91,19 @@ def get_dataloaders(root, batch_size=32, with_masks=False, subset=None, multiple
         )
     return tuple(loaders)
 
+def show_image(image, title=None):
+    image = image.squeeze() # turn into just h,w
+    plt.imshow(image, cmap="gray", vmin=0, vmax=1)
+    plt.title=title
+    plt.axis="off"
+    plt.show()
+    return
+
 if __name__ == "__main__":
     print("testing")
     root = prefix = "C:/Users/danfu/PatternAnalysis-2026/data/"
     check_no_overlap(root)
     train_loader, _, _ = get_dataloaders(root, subset=64)
     print("batch shape:", next(iter(train_loader)).shape)
+    x= next(iter(train_loader))
+    show_image(x[0].numpy())
