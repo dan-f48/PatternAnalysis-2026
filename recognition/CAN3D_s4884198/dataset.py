@@ -5,17 +5,17 @@ import torch.nn.functional as F
 import os 
 import re
 
-prefix = "data/"
+prefix = "C:/Users/danfu/PatternAnalysis-2026/data/"
 IMG_DIRS = {
-    "train": f"{prefix}train",
-    "validate": f"{prefix}validate",
-    "test": f"{prefix}test"
+    "train": f"{prefix}keras_slices_train",
+    "validate": f"{prefix}keras_slices_validate",
+    "test": f"{prefix}keras_slices_test"
 }
 
 SEG_DIRS = {
-    "train": f"{prefix}train",
-    "validate": f"{prefix}validate",
-    "test": f"{prefix}test"
+    "train": f"{prefix}keras_slices_seg_train",
+    "validate": f"{prefix}keras_slices_seg_vlidate",
+    "test": f"{prefix}keras_slices_seg_test"
 }
 
 
