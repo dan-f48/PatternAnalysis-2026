@@ -22,9 +22,9 @@ class Decoder(nn.Module):
         self.net = nn.Sequential(
             #reverses the encoder process 
             nn.Conv2d(latent_dim, hidden * 4, 1), nn.ReLU(),
-            nn.Conv2d(hidden * 4, hidden * 2, 4, stride=2, padding=1), nn.ReLU(),
-            nn.Conv2d(hidden * 2, hidden, 4, stride=2, padding=1), nn.ReLU(),
-            nn.Conv2d(hidden, 1, 4, stride=2, padding=1), nn.Sigmoid(),
+            nn.ConvTranspose2d(hidden * 4, hidden * 2, 4, stride=2, padding=1), nn.ReLU(),
+            nn.ConvTranspose2d(hidden * 2, hidden, 4, stride=2, padding=1), nn.ReLU(),
+            nn.ConvTranspose2d(hidden, 1, 4, stride=2, padding=1), nn.Sigmoid(), #values in [0,1] 
         )
 
     def forward(self, x):
