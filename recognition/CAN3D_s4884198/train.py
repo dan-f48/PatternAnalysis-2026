@@ -65,7 +65,7 @@ def main(model):
         #loads batches from test loader and generates SSIM 
         for x  in test_loader:
             recon, _ = model(x)
-            ssim.update(recon, x)
+            ssim.update(recon, x) 
     print(f"test SSIM: {ssim.compute():.3f}")
 
     #stats if i ran it on RANGPUR
