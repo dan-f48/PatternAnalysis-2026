@@ -19,13 +19,24 @@ SEG_DIRS = {
     "test": "keras_slices_seg_test"
 }
 
-def load_slices(paths, is_mask=False):
+TARGET_SHAPE = (256, 128)
+
+
+def load_slices(paths, is_mask=False, target_shape=TARGET_SHAPE):
     arrs = []
     for p in tqdm(paths):
         a = nib.load(p).get_fdata(caching="unchanged") # loops through files reading them into np array of pixel values
         if a.ndim == 3:
             a = a[:, :, 0]                      # drop extra dimemsions in case images have a third dimension
         a = a.astype(np.float32) #pytorch default tensor type
+        if a.shape != target_shape:
+            t = torch.from_numpy(a)[None, None]
+            if is_mask:
+                t = F.interpolate(t, size=target_shape, mode="nearest")
+            else:
+                t = F.interpolate(t, size=target_shape, mode="bilinear", align_corners=False)
+            a = t[0, 0].numpy()        
+        
         if is_mask:
             a = (a > 0).astype(np.float32)      # binary prostate maskc (prostate or not)
         else:
