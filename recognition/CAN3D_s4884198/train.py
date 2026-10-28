@@ -8,9 +8,9 @@ from dataset import get_dataloaders
 from modules import BaseModel, BaseVAE
 
 ROOT = "C:/Users/danfu/PatternAnalysis-2026/data/"
-EPOCHS = 5
-BATCH_SIZE = 32
-SUBSET = 200 
+EPOCHS = 2
+BATCH_SIZE = 64
+SUBSET = None 
 NUM_WORKERS = 0
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') #standard device def 
 
@@ -19,7 +19,7 @@ def main(model):
     #send given model, ssim to device and define adam optimiser
     model = model.to(device) 
     ckpt_path = "vae_best.pth"
-    optimiser = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimiser = torch.optim.Adam(model.parameters(), lr=1e-1)
     ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(device)
 
     #reset the tracked memory stats so measurement is accurate 
