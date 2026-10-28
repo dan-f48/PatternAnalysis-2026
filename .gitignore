@@ -28,6 +28,7 @@ MANIFEST
 
 test
 testcode.py
+vq-vae-successful-run-1
 
 # PyInstaller
 #   Usually these files are written by a python script from a template
