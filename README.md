@@ -66,5 +66,6 @@ pdf version (converted into image):
 ## Process / Adjustments
 baseline vae:
 - during the smoke test for the checkup, I used a small subset of the data, unaware that some of the file sizes were different (256x144). This resulted in my first complete attempt to result in an error. This was fixed with a function running in the dataloader which normalises the images to 256x128
-- in the second attempt, the vae showed a final SSIM of 0.952. The issue here was that it became much too specific to the dataset. The beta value I supplied in the KL calculation was too small, and my vae essentially just became a regular autoencoder, so the randomly produced samples from the latent space were gibberish, just noise essentially: 
+- in the second attempt, the vae showed a final SSIM of 0.952. The issue here was that it became much too specific to the dataset. The beta value I supplied in the KL calculation was too small, and my vae essentially just became a regular autoencoder, so the randomly produced samples from the latent space were gibberish, just noise essentially, while the learned slices were accurately reconstructed: 
 ![sample](images/vae_sample.png)
+![sample](images/vae_reconstructions.png)

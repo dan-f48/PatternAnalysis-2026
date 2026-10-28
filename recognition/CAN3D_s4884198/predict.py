@@ -10,8 +10,8 @@ from torchmetrics.image import StructuralSimilarityIndexMeasure
 from dataset import _find, load_slices, pad_multiple, IMG_DIRS
 from modules import BaseVAE
 
-ROOT = "C:/Users/danfu/PatternAnalysis-2026/data/"
-CKPT = "vae_best_old.pth"
+ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
+CKPT = "vae_best.pth"
 N_SHOW = 6
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -59,5 +59,47 @@ def main(ckpt=CKPT, out="vae_predictions.png"):
     print(f"saved {out}")
 
 
+def generate(ckpt=CKPT, out="vae_generated.png", n=8, seed=0, match_data=False):
+    """Decode random latents into new images.
+
+    match_data=False: sample z ~ N(0, 1) (standard VAE sampling).
+    match_data=True:  sample from a per-channel Gaussian fitted to encoded
+                      training slices (fixes the prior/aggregate-posterior mismatch;
+                      state this clearly if you report results from it).
+    """
+    model = BaseVAE(latent_dim=64).to(device)
+    model.load_state_dict(torch.load(ckpt, map_location=device))
+    model.eval()
+    torch.manual_seed(seed)  # fixed seed so the grid is reproducible, not cherry-picked
+
+    h, w = 32, 16  # latent grid size for 256 x 128 inputs
+    with torch.no_grad():
+        if not match_data:
+            z = torch.randn(n, model.latent_dim, h, w, device=device)
+        else:
+            paths = _find(ROOT, IMG_DIRS["train"])
+            step = max(1, len(paths) // 500)  # ~500 evenly spaced training slices
+            x = pad_multiple(torch.from_numpy(load_slices(paths[::step])), 8).to(device)
+            mu, _ = model.encoder(x).chunk(2, dim=1)
+            mean = mu.mean(dim=(0, 2, 3), keepdim=True)  # per-channel statistics
+            std = mu.std(dim=(0, 2, 3), keepdim=True)
+            z = mean + std * torch.randn(n, model.latent_dim, h, w, device=device)
+        imgs = model.decoder(z).cpu()
+
+    fig, axes = plt.subplots(1, n, figsize=(2 * n, 4))
+    for ax, img in zip(axes, imgs):
+        ax.imshow(img.squeeze(), cmap="gray", vmin=0, vmax=1)
+        ax.axis("off")
+    plt.suptitle(f"Generated samples (seed {seed}, {'fitted' if match_data else 'N(0,1)'} latent)")
+    plt.savefig(out, bbox_inches="tight")
+    plt.close()
+    print(f"saved {out}")
+
+
 if __name__ == "__main__":
-    main(*sys.argv[1:])
+    # python predict.py                      -> reconstruction check
+    # python predict.py generate [match]     -> generate new images
+    if len(sys.argv) > 1 and sys.argv[1] == "generate":
+        generate(match_data=(len(sys.argv) > 2 and sys.argv[2] == "match"))
+    else:
+        main(*sys.argv[1:])
