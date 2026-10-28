@@ -8,9 +8,9 @@ from dataset import get_dataloaders
 from modules import BaseModel, BaseVAE
 
 ROOT = "C:/Users/danfu/PatternAnalysis-2026/data/"
-EPOCHS = 5
-BATCH_SIZE = 32
-SUBSET = 200 
+EPOCHS = 40
+BATCH_SIZE = 64
+SUBSET = None
 NUM_WORKERS = 0
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') #standard device def 
 
