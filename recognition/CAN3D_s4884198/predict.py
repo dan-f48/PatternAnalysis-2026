@@ -10,7 +10,7 @@ from torchmetrics.image import StructuralSimilarityIndexMeasure
 from dataset import _find, load_slices, pad_multiple, IMG_DIRS
 from modules import BaseVAE
 
-ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
+ROOT = "C:/Users/danfu/PatternAnalysis-2026/data/"
 CKPT = "vae_best.pth"
 N_SHOW = 6
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

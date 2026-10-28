@@ -8,10 +8,14 @@ from dataset import get_dataloaders
 from modules import BaseModel, BaseVAE
 
 ROOT = "C:/Users/danfu/PatternAnalysis-2026/data/"
-EPOCHS = 2
+EPOCHS = 40
 BATCH_SIZE = 64
 SUBSET = None 
 NUM_WORKERS = 0
+TARGET_BETA = 1e-1
+WARMUP = 15
+
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') #standard device def 
 
 def main(model):
@@ -19,7 +23,7 @@ def main(model):
     #send given model, ssim to device and define adam optimiser
     model = model.to(device) 
     ckpt_path = "vae_best.pth"
-    optimiser = torch.optim.Adam(model.parameters(), lr=1e-1)
+    optimiser = torch.optim.Adam(model.parameters(), lr=1e-3)
     ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(device)
 
     #reset the tracked memory stats so measurement is accurate 
@@ -30,6 +34,7 @@ def main(model):
 
     #training loop. One pass over the data per epoch 
     for epoch in range (EPOCHS):
+        model.beta = TARGET_BETA * min(1.0, epoch / 15)
         start = time.time()
         model.train() #model in training mode 
         total = 0.0 
@@ -57,7 +62,7 @@ def main(model):
                 recon, _ = model(x)
                 ssim.update(recon, x)
         val_ssim = ssim.compute().item()
-        if val_ssim > best_ssim:
+        if epoch >= WARMUP and val_ssim > best_ssim:
             best_ssim = val_ssim
             torch.save(model.state_dict(), ckpt_path)
 
@@ -101,7 +106,7 @@ def train_basemodel():
     main(model=model)
 
 def train_vae():
-    model = BaseVAE(latent_dim=64)
+    model = BaseVAE(latent_dim=8)
     main(model=model)
     save_samples(model, device, path="vae_sample.png")
 
