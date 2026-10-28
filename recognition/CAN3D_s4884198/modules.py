@@ -121,3 +121,68 @@ class VectorQuantizerEMA(nn.Module):
         avg = onehot.mean(0)
         perplexity = torch.exp(-(avg * torch.log(avg + 1e-10)).sum())  # ~ number of codes in use
         return zq, loss, idx.view(B, H, W), perplexity
+
+
+class VQVAE(nn.Module):
+    """Same Encoder/Decoder as the baselines, with a quantizer in between.
+    forward returns (reconstruction, extra_loss) so the existing train loop works unchanged."""
+ 
+    def __init__(self, num_codes=512, dim=64, hidden=64):
+        super().__init__()
+        self.encoder = Encoder(dim, hidden)
+        self.quant = VectorQuantizerEMA(num_codes, dim)
+        self.decoder = Decoder(dim, hidden)
+        self.last_perplexity = 0.0
+ 
+    def forward(self, x):
+        zq, vq_loss, _, perplexity = self.quant(self.encoder(x))
+        self.last_perplexity = perplexity.item()  # read this for logging
+        return self.decoder(zq), vq_loss
+ 
+    @torch.no_grad()
+    def encode_indices(self, x):
+        """Image -> grid of code indices, shape (B, H/8, W/8)."""
+        _, _, idx, _ = self.quant(self.encoder(x))
+        return idx
+ 
+    @torch.no_grad()
+    def decode_indices(self, idx):
+        """Grid of code indices (B, H, W) -> image. Used for generation."""
+        zq = F.embedding(idx, self.quant.embed).permute(0, 3, 1, 2)
+        return self.decoder(zq)
+ 
+ 
+class CodePrior(nn.Module):
+    """Small causal transformer over the flattened code grid (raster order).
+    Learns which code grids look like real scans, so we can sample new ones."""
+ 
+    def __init__(self, num_codes=512, seq_len=512, d_model=256, heads=8, layers=4):
+        super().__init__()
+        self.num_codes, self.seq_len = num_codes, seq_len
+        self.tok = nn.Embedding(num_codes + 1, d_model)  # +1 for the start token
+        self.pos = nn.Parameter(torch.zeros(1, seq_len, d_model))
+        layer = nn.TransformerEncoderLayer(d_model, heads, 4 * d_model, dropout=0.1,
+                                           batch_first=True, norm_first=True)
+        self.blocks = nn.TransformerEncoder(layer, layers)
+        self.norm = nn.LayerNorm(d_model)
+        self.head = nn.Linear(d_model, num_codes)
+ 
+    def forward(self, inp):  # inp: (B, T) token ids (start token = num_codes)
+        T = inp.shape[1]
+        mask = torch.triu(torch.ones(T, T, dtype=torch.bool, device=inp.device), diagonal=1)
+        h = self.tok(inp) + self.pos[:, :T]
+        return self.head(self.norm(self.blocks(h, mask=mask)))  # (B, T, num_codes)
+ 
+    def loss(self, codes):  # codes: (B, T) true code ids
+        start = torch.full((codes.shape[0], 1), self.num_codes, device=codes.device, dtype=codes.dtype)
+        logits = self(torch.cat([start, codes[:, :-1]], dim=1))
+        return F.cross_entropy(logits.reshape(-1, self.num_codes), codes.reshape(-1))
+ 
+    @torch.no_grad()
+    def sample(self, n, temperature=1.0, device="cpu"):
+        seq = torch.full((n, 1), self.num_codes, device=device, dtype=torch.long)
+        for _ in range(self.seq_len):
+            logits = self(seq)[:, -1] / temperature
+            nxt = torch.multinomial(F.softmax(logits, dim=-1), 1)
+            seq = torch.cat([seq, nxt], dim=1)
+        return seq[:, 1:]  # drop the start token -> (n, seq_len)
