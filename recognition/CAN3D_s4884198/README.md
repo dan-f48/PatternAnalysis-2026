@@ -59,9 +59,23 @@ Contains all model components. Written with pytorch.
 - VQVAE: encoder, quantiser and decoder in sequence. The encoder is deterministic and doesnt have a KL term, unlike BaseVAE. It can reconstruct images, but can't generate. 
 - CodePrior: a small casual transformer over the 512 code indices of a grid in raster order. It is trained with cross entropy loss to predict each code from the ones before it. For generation, it samples a code grid one token at a time (with a temperature setting), and the VQ-VAE decoder turns it into an image.
 
+**Usage of these models are throughout train.py and predict.py**
+
 
 ## dataset.py 
-Containing the data loader for loading and preprocessing your data, including leakagefree train/validation/test splitting functions and data augmentations.
+Loads and preprocesses HipMRI 2d slices (keras_slice_data) and returns usable pytorch data loaders
+- load_slices: reads the nifti files with nibabel, drops any extra dimensions (as a safety feature I'm pretty sure this is overkill), and converts to fload32. Slices which aren't 256 x 128 are resized to fit the proper size, as this is what the encoders expect (this cost me an overnight RANGPUR run before I realised some were odd sizes). Each image is then min-max scaled to [0, 1]. Masks are binarised (>0) 
+- pad_multiple: pads height and width to a multiple of 8 so the encoder's 3 stride-2 layers divide evenly. This is also overkill as everything is generally 256 x 128, but good as safety.
+- DatasetSlice: a Dataset wrapper which returns an image, or an image mask pair when masks are loaded
+- get_dataloaders: builds the train, validate, and test loaders (batch size 64, shuffled for training). It also takes a subset parameter for quick / cpu based tests and a with_masks parameter for masks 
+- check_no_overlap: extracts patient IDs from the filenames with a regular expression and reports slice counts, ID counts and the overlap betwenn each pair of splits. This is mainly just to fulfil a success criteria I made in the checkin. 
+
+For data splits I use the given ones in the task. check_no_overlap never found any overlap between them.
+
+DATA AUDIT FINDING: There were 60 out of the 11,460 training slices which were 256 x 144. Validation and test slices were uniform. Slight horizontal squashes were applied to the misshapen files. 
+
+**Usage of this file is to provide data to train.py**
+
 
 ## predict.py 
 Showing example usage of your trained model. It should load your saved model
