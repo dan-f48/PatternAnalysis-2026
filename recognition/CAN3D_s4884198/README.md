@@ -78,8 +78,25 @@ DATA AUDIT FINDING: There were 60 out of the 11,460 training slices which were 2
 
 
 ## predict.py 
-Showing example usage of your trained model. It should load your saved model
-weights, run inference on test cases, print out any results, and provide visualisations where applicable.
+Loads saved pth files and generates results without retraining. This is a command line based file   
+
+**usage:**
+
+predict.py recon vae            <--- reconstruct test slices (original / reconstruction / err)
+
+predict.py recon vqcae          <--- same deal
+
+predict.py generate vae [match]   <--- sample from the VAE latent
+
+predict.py generate vqvae <--- sample code grids from the prior then decode, default temperature 1.0
+
+
+- load_model: builds the chosen model from .pth, this must be run from the same folder where the relevant .pth is stored.
+- reconstruct: reconstructs the whole test split, prints mean, min and max SSIM, and saves a figure of evenly spaced slices with an abs error heatmap 
+- generate_vae: saves a grid of samples with fixed seed for reproducability 
+- generate_vqvae: saves a grid of samples with fixed seed for reproducability
+- GRID and checkpoint names are also defined in this file 
+
 
 ## train.py 
 
