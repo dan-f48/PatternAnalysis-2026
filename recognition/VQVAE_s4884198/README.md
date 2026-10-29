@@ -30,8 +30,10 @@ Daniel Fuller: 48841988
 
 **3\. Preliminary Feasibility Evidence**   
 **Data Structure**: Already pre-split into test, train, and validate data sets, with segmentation masks defining the prostate area. No overlap between sets:  
+
 ![](../../images/overlap.png) 
 **Baseline Smoke Test**: (generated samples are still essentially noise, but it’s a smoke test)  
+
 ![](../../images/smoketest.png)![](../../images/smoketestsamples.png)
 
 **4\. Risks, Budget and Fallback**   
@@ -41,6 +43,7 @@ Daniel Fuller: 48841988
 **Fallback**: Raise latent resolution or codebook size first, then add an SSIM loss term. If prior is not working, use a smaller codebook and simpler autoregressive model. 
 
 pdf version (converted into image):
+
 ![feasiblity](../../images/feasibility.PNG)
 
 # Files
@@ -210,4 +213,32 @@ generation time for 16 images: 2.5s
 ![sample](../../images/vq_vae_samples.png)
 
 
-## evaluation 
+# evaluation 
+
+The following are the statistics produced by the full evaluation stat dump after running the eval code on the RANGPUR GPU cluster:
+
+
+| Model | VAE | VQ-VAE Temp 0.9 | VQ-VAE Temp 1.0 |
+| -------- | -------- | -------- | -------- |
+| n_gen  | 64 |  64| 64 |
+| n_train_ref  | 11460 |11460  | 11460 |
+| n_test_queries  |  200 | 200  | 200 |
+| recon_ssim_test  |  0.4472905695438385 | 0.8055967688560486  | 0.8055967688560486 |
+| recon_mse_test  |  0.006539395544677973 | 0.0018718757200986147  | 0.0018718757200986147 |
+| codes_used |   |  512 | 512 |
+| perplexity  |   |  334.1156311035156 | 334.1156311035156 |
+| codebook_size  |   | 512  | 512 |
+| gen_time_s | 0.019147872924804688  |  8.334158420562744 | 8.594757556915283 |
+| gen_nn_ssim_mean  |  0.36210864782333374 | 0.4199681878089905  | 0.3917403817176819 |
+| gen_nn_ssim_std |   0.014701646752655506 | 0.03443646803498268  |0.0425240732729435  |
+| test_nn_ssim_mean |  0.36795321106910706 | 0.36795321106910706  |0.36795321106910706  |
+| test_nn_ssim_std | 0.03222741186618805  |0.03222741186618805   |  0.03222741186618805 |
+| test_nn_ssim_p95  | 0.43017399311065674   | 0.43017399311065674  |0.43017399311065674  |
+| gen_frac_above_test_p95  |  0.0 |  0.390625 |0.171875  |
+| gen_nn_ssim_max  | 0.3952794075012207  |  0.48835253715515137 | 0.48243677616119385 |
+| pairwise_ssim_gen  | 0.39985397458076477  |  0.32045307755470276 |0.2945951521396637  |
+| pairwise_ssim_real  |   0.25888755917549133 | 0.25888755917549133  | 0.25888755917549133 |
+| fid  | 493.6816101074219  | 206.61737060546875  | 225.224609375 |
+| fid_n  |500| 500 | 500 |
+
+
