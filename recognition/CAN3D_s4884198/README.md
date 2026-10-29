@@ -80,6 +80,13 @@ DATA AUDIT FINDING: There were 60 out of the 11,460 training slices which were 2
 ## predict.py 
 Loads saved pth files and generates results without retraining. This is a command line based file   
 
+- load_model: builds the chosen model from .pth, this must be run from the same folder where the relevant .pth is stored.
+- reconstruct: reconstructs the whole test split, prints mean, min and max SSIM, and saves a figure of evenly spaced slices with an abs error heatmap 
+- generate_vae: saves a grid of samples with fixed seed for reproducability 
+- generate_vqvae: saves a grid of samples with fixed seed for reproducability
+- GRID and checkpoint names are also defined in this file 
+
+
 **usage:**
 
 predict.py recon vae            <--- reconstruct test slices (original / reconstruction / err)
@@ -91,18 +98,70 @@ predict.py generate vae [match]   <--- sample from the VAE latent
 predict.py generate vqvae <--- sample code grids from the prior then decode, default temperature 1.0
 
 
-- load_model: builds the chosen model from .pth, this must be run from the same folder where the relevant .pth is stored.
-- reconstruct: reconstructs the whole test split, prints mean, min and max SSIM, and saves a figure of evenly spaced slices with an abs error heatmap 
-- generate_vae: saves a grid of samples with fixed seed for reproducability 
-- generate_vqvae: saves a grid of samples with fixed seed for reproducability
-- GRID and checkpoint names are also defined in this file 
-
-
 ## train.py 
 
-Containing the source code for training, validating, testing, and saving your model. The model should be imported from modules.py and the data loader should be imported from dataset.py. Make sure to plot the losses and metrics during training.
+This is the meat and bones. It contains the training loops for all models and the evaluation code that produces the results table. I considered putting the evaluation code in predict.py but the task sheet stated "code for training, **validating, testing**, and saving" so I put it here
+
+TRAINING 
+
+- main(model, ckpt_path): the shared loop for the autoencoder, VAE and VQ-VAE. It uses the Adam optimiser, a loss of MSE plus the model's extra loss, which for the BaseVAE is the KL term and for the VQVAE it's the commitment loss. Currently, the batch size is set to 64, and 80 epochs. 
+- train_basemodel, train_vae, train_vq_vae: all just wrappers that build a model and call main
+- train_prior: freezes the trained VQVAE, encodes every training and validation image into its 32x16 grid of code indices, and trains the transformer prior with cross entropy (Adam, gradient clipping at 1.0). It keeps the checkpoint with the lowest validation loss, then samples images with a fixed seed
 
 
+EVALUATION
+
+- recon_ssim: SSIM and MSE between each unseen test slice and its own reconstruction. This is the metric for the SSIM > 0.6 target 
+- codebook_usage: how many of the 512 codes are used on the test set, and the perplexity
+- sample: generates images (the prior then teh decoder for the VQVAE and random latents for the VAE, with fixed seeds)
+- fid_score: Fréchet Inception Distance between generated samples and the test set, using the standard pretrained Inception network only as a feature extractor. I beleive this is allowed as per an ed discussion post I saw
+- nearest_ssim: memorisation detection. Each generated image is compared with every training slice to find its nearest one, and the result is compared with how close unseen test slices get to the training set. This is used only to detect near-copies. It isn't a quality score 
+- mean_pairwise_ssim: diversity statistic comparing generated samples with real slices
+- interpolate: latenet space interpolation between pairs of real training slices
+- run: evaluates one model and saves figures and a results_[model].json and [table], printing all results side by side. 
+
+**Usage.** 
+edit the ```__main__``` block at the bottom of the file to choose the operation 
+```
+# training the vae
+WARMUP = 15
+train_vae()
+
+#training the VQVAE 
+WARMUP = 0
+train_vq_vae()
+train_prior() #this needs vqvae_best.pth to be saved
+
+#evaluating the models
+run("vae")
+run("vqvae", temperature=1.0)
+table()
+
+```
+
+## general operational advice 
+- ROOT global variables have to be changed to suit the user. For rangpur, use the RANGPUR root, and when running locally it has to be changed as well. 
+- generally, these processes take forever, especially evaluation and training, when run on CPU power. Where possible use GPU clusters.
+- before committing to a large run, decrease the epoch count heavily and run a smoke test to make sure files are in the right place. Set all epoch variables to like 2 or 5 or something.
+- make sure to save outputs from previous runs in another folder, or rename them. The names of saved files are static, so generated files from new runs can override old ones. 
+
+the following is the job.sh I used to run the training file on the GPU cluster, feel free to reuse:
+```
+#!/bin/bash
+#SBATCH --job-name=evaluation_full
+#SBATCH --partition=comp3710
+#SBATCH --account=comp3710
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=02:00:00
+#SBATCH --output=VQVAE_s4884198/evaluation_full_%j.out
+#SBATCH --error=VQVAE_s4884198/evaluation_full_%j.err
+# Activate your conda environment
+source $HOME/miniconda3/bin/activate
+conda activate torch
+# Run the script
+python VQVAE_s4884198/train.py
+```
 
 
 
@@ -110,10 +169,12 @@ Containing the source code for training, validating, testing, and saving your mo
 ### baseline vae:
 - during the smoke test for the checkup, I used a small subset of the data, unaware that some of the file sizes were different (256x144). This resulted in my first complete attempt to result in an error. This was fixed with a function running in the dataloader which normalises the images to 256x128
 - in the second attempt, (running for 80 epochs) the vae showed a final SSIM of 0.952. The issue here was that the weak KL term meant the latent space didn’t match the N(0,1) used for sampling, so sampling landed where the decoder hadn’t been trained. The beta value I supplied in the KL calculation was too small, and my vae essentially just became a regular autoencoder, so the randomly produced samples from the latent space were gibberish, just noise essentially, while the learned slices were accurately reconstructed: 
+
 ![sample](../../images/vae_sample.png)
 ![sample](../../images/vae_reconstructions.png)
 
 - increasing the beta and providing a warmup period for the vae decreased the specificity. In an effort to increase the fidelity of generated images, I also tried reducing the latent dimension of the trained vae. This reduced reconstruction fidelity and reduced the amount that the images looked like pure noise, but it was still unable to produce coherent generated images. 
+
 ![sample](../../images/vae_sample_2.png)
 ![sample](../../images/vae_reconstructions_2.png)
 
@@ -145,6 +206,7 @@ generation time for 16 images: 2.5s
 ```
 - judging by the difference in training and validation CE, there may be some overfitting, but I would not say the model is memorising images. 
 - the end of training generation produced these samples:
+
 ![sample](../../images/vq_vae_samples.png)
 
 
