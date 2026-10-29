@@ -30,9 +30,9 @@ Daniel Fuller: 48841988
 
 **3\. Preliminary Feasibility Evidence**   
 **Data Structure**: Already pre-split into test, train, and validate data sets, with segmentation masks defining the prostate area. No overlap between sets:  
-![](images/overlap.png) 
+![](../../images/overlap.png) 
 **Baseline Smoke Test**: (generated samples are still essentially noise, but it’s a smoke test)  
-![](images/smoketest.png)![](images/smoketestsamples.png)
+![](../../images/smoketest.png)![](../../images/smoketestsamples.png)
 
 **4\. Risks, Budget and Fallback**   
 **Risks**: The risks associated with the VQ-VAE include: codebook collapse, slice level leakage inflating SSIM, SSIM reaching the threshold of 0.6 but images still being blurry, memorisation, and prior failing.   
@@ -41,11 +41,48 @@ Daniel Fuller: 48841988
 **Fallback**: Raise latent resolution or codebook size first, then add an SSIM loss term. If prior is not working, use a smaller codebook and simpler autoregressive model. 
 
 pdf version (converted into image):
-![feasiblity](images/feasibility.PNG)
+![feasiblity](../../images/feasibility.PNG)
 
 ## Process / Adjustments
-baseline vae:
+### baseline vae:
 - during the smoke test for the checkup, I used a small subset of the data, unaware that some of the file sizes were different (256x144). This resulted in my first complete attempt to result in an error. This was fixed with a function running in the dataloader which normalises the images to 256x128
-- in the second attempt, the vae showed a final SSIM of 0.952. The issue here was that it became much too specific to the dataset. The beta value I supplied in the KL calculation was too small, and my vae essentially just became a regular autoencoder, so the randomly produced samples from the latent space were gibberish, just noise essentially, while the learned slices were accurately reconstructed: 
-![sample](images/vae_sample.png)
-![sample](images/vae_reconstructions.png)
+- in the second attempt, (running for 80 epochs) the vae showed a final SSIM of 0.952. The issue here was that the weak KL term meant the latent space didn’t match the N(0,1) used for sampling, so sampling landed where the decoder hadn’t been trained. The beta value I supplied in the KL calculation was too small, and my vae essentially just became a regular autoencoder, so the randomly produced samples from the latent space were gibberish, just noise essentially, while the learned slices were accurately reconstructed: 
+![sample](../../images/vae_sample.png)
+![sample](../../images/vae_reconstructions.png)
+
+- increasing the beta and providing a warmup period for the vae decreased the specificity. In an effort to increase the fidelity of generated images, I also tried reducing the latent dimension of the trained vae. This reduced reconstruction fidelity and reduced the amount that the images looked like pure noise, but it was still unable to produce coherent generated images. 
+![sample](../../images/vae_sample_2.png)
+![sample](../../images/vae_reconstructions_2.png)
+
+
+
+
+### vq vae 
+- The vq-vae requires the training of 2 different models, the actual vector quantised autoencoder, and the prior 
+- Initial adjustments for data loading had to be made, but after that I ran the training process for 80 epochs on the autoencoder, and 30 epochs on the prior (which itself relies upon the pre-trained autoencoder) 
+- In the results for this, the autoencoder was reporting SSIM close to 0.8, and did not appear to be making significant improvements to this metric, but the prior still looked like it was making progress judging from training loss. The final training CE for the prior was 3.625.
+- For this reason, I retrained the prior with 60 epochs. The final stats were:
+
+autoencoder:
+```
+epoch: 80: train MSE 0.0028, validate SSIM 0.778, 3.0 seconds
+test SSIM: 0.806
+peak VRAM: 0.82 GB
+train: (11460, 1, 256, 128), range [0.00, 1.00]
+validate: (660, 1, 256, 128), range [0.00, 1.00]
+test: (540, 1, 256, 128), range [0.00, 1.00]
+codes: train (11460, 512), val (660, 512), grid 32x16
+```
+
+prior:
+```
+epoch 60: train CE 3.474, val CE 3.972, 14.2s
+peak VRAM: 2.85 GB
+generation time for 16 images: 2.5s
+```
+- judging by the difference in training and validation CE, there may be some overfitting, but I would not say the model is memorising images. 
+- the end of training generation produced these samples:
+![sample](../../images/vq_vae_samples.png)
+
+
+## evaluation 
