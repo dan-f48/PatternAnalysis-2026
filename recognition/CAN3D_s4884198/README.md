@@ -43,7 +43,39 @@ Daniel Fuller: 48841988
 pdf version (converted into image):
 ![feasiblity](../../images/feasibility.PNG)
 
-## Process / Adjustments
+# Files
+
+## modules.py 
+Contains all model components. Written with pytorch. 
+
+- Encoder: three stride-2 convolutions shrink an image of dimensions (1, 256, 128) to a latent grid of dimensions (D, 32, 16)
+- Decoder: the reverse of the encoder. Using transposed convolutions and a sigmoid at the end so pixel values are between 0 and 1 
+
+- BaseModel: plain autoencoder with a continuous latent. Used for a smoke test before creating the VAE
+- BaseVAE: the baseline model for this assignment. The encoder outputs a mean and logvar per latent value, a sample is drawn with the reparamatisation trick, and a KL term i have denoted as beta pulls the latent towards N(0, 1). Image generation works by decoding random latents.
+
+**MAIN MODEL COMPONENTS**
+- VectorQuantizerEMA: replaces each of the 32 x 16 encoder vectors with its nearest entry in the codebook (512 learned entries of dimension 64). The codebook is updated with exponential moving avg, and unused entries are reseeded from encoder outputs to avoid codebook collapse (which is when a small amount of codebook entries are the only ones which ever get used). A commitment loss keeps encoder outputs close to their codes, and gradients pass through the snapping step with the straight-through estimator.
+- VQVAE: encoder, quantiser and decoder in sequence. The encoder is deterministic and doesnt have a KL term, unlike BaseVAE. It can reconstruct images, but can't generate. 
+- CodePrior: a small casual transformer over the 512 code indices of a grid in raster order. It is trained with cross entropy loss to predict each code from the ones before it. For generation, it samples a code grid one token at a time (with a temperature setting), and the VQ-VAE decoder turns it into an image.
+
+
+## dataset.py 
+Containing the data loader for loading and preprocessing your data, including leakagefree train/validation/test splitting functions and data augmentations.
+
+## predict.py 
+Showing example usage of your trained model. It should load your saved model
+weights, run inference on test cases, print out any results, and provide visualisations where applicable.
+
+## train.py 
+
+Containing the source code for training, validating, testing, and saving your model. The model should be imported from modules.py and the data loader should be imported from dataset.py. Make sure to plot the losses and metrics during training.
+
+
+
+
+
+# Process / Adjustments
 ### baseline vae:
 - during the smoke test for the checkup, I used a small subset of the data, unaware that some of the file sizes were different (256x144). This resulted in my first complete attempt to result in an error. This was fixed with a function running in the dataloader which normalises the images to 256x128
 - in the second attempt, (running for 80 epochs) the vae showed a final SSIM of 0.952. The issue here was that the weak KL term meant the latent space didn’t match the N(0,1) used for sampling, so sampling landed where the decoder hadn’t been trained. The beta value I supplied in the KL calculation was too small, and my vae essentially just became a regular autoencoder, so the randomly produced samples from the latent space were gibberish, just noise essentially, while the learned slices were accurately reconstructed: 
@@ -58,7 +90,7 @@ pdf version (converted into image):
 
 
 ### vq vae 
-- The vq-vae requires the training of 2 different models, the actual vector quantised autoencoder, and the prior 
+- The vq-vae requires the training of 2 different models, the actual vector quantised autoencoder, and the prior (used for generation)
 - Initial adjustments for data loading had to be made, but after that I ran the training process for 80 epochs on the autoencoder, and 30 epochs on the prior (which itself relies upon the pre-trained autoencoder) 
 - In the results for this, the autoencoder was reporting SSIM close to 0.8, and did not appear to be making significant improvements to this metric, but the prior still looked like it was making progress judging from training loss. The final training CE for the prior was 3.625.
 - For this reason, I retrained the prior with 60 epochs. The final stats were:
