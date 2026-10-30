@@ -115,7 +115,7 @@ def train_vq_vae():
 
 VQ_CKPT = "vqvae_best.pth"
 PRIOR_CKPT = "prior_best.pth"
-PRIOR_EPOCHS = 30
+PRIOR_EPOCHS = 60
 PRIOR_BATCH_SIZE = 64
 PRIOR_N_SAMPLES = 16
 SEED = 0

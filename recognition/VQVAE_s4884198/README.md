@@ -202,7 +202,7 @@ pip install torch==2.13.0 torchmetrics==1.9.0 torch-fidelity==0.4.0 nibabel==5.4
 | matplotlib | 3.11.1 | figures |
 | tqdm | 4.70.1 | progress bars |
 
-- Results were produced on Rangpur cluster. The final VAE reported in the results was trained locally.
+- Results were produced using Rangpur. The final VAE reported in the results was trained locally.
 - FID downloads the pretrained Inception weights on first use, so it needs internet access once (run it on the login node to cache them).
 - `modules.py` imports only PyTorch, as required in the task sheet.
 
