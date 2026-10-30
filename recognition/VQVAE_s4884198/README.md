@@ -142,6 +142,20 @@ table()
 
 ```
 
+## curves.py 
+helper function solely to generate training curves from RANGPUR .out files. This is another command line based file. 
+
+- parse(path, pattern): reads a log file line by line and keeps only the lines matching the given regular expression. Each match yields epoch, value_a and value_b, which is train MSE, validation SSIM for autoencoder logs and train CE, validation CE for prior logs. It returns a list of runs. A new run starts whenever the epoch number doesnt increase. This lets several training runs in one log file be separated.  
+- plot_ae(items): draws the autoencoder figure from a list of (label, runs) pairs. The left panel plots training loss on a log scale and the right plots validation SSIM with a dashed line for 0.6 (the defined target). Each run is overlaid with its label in the legend and the fig is saved as ae_curves.png. 
+- plot_prior(items): draws one panel per prior log, with training cross entropy as a solid line and validation cross entropy as a dashed line. It marks the lowest validation value with a black star, which is the epoch where the best prior checkpoint was saved. The fig is saved as prior_curves.png. 
+
+**usage**
+requires this command line structure:
+
+```python plot_curves.py VAE=vae_full.out VQVAE=vqvae_full.out PRIOR=prior_full.out```
+
+
+
 ## general operational advice 
 - ROOT global variables have to be changed to suit the user. For rangpur, use the RANGPUR root, and when running locally it has to be changed as well. 
 - generally, these processes take forever, especially evaluation and training, when run on CPU power. Where possible use GPU clusters.
@@ -280,5 +294,47 @@ temp 0.9
 ![sample](../../images/temp0.9_pairs.png)
 
 
-As for the VQVAE nearest pairs. The temp 0.9 nearest pairs do look observably closer to their closest counterparts than the temp 1.0 ones, but while the temp 0.9 pairs do contain similarities in overall structure, I don't think it can be said they are copies. I beleive there is enough observable difference in both sets. 
+As for the VQVAE nearest pairs. The temp 0.9 nearest pairs do look observably closer to their closest counterparts than the temp 1.0 ones, but while the temp 0.9 pairs do contain similarities in overall structure, I don't think it can be said they are copies. I beleive there is enough observable difference in both sets. The mean nearest neighbour SSIM for t=0.9 is 0.42, while it is 0.39 at t=1.0. This does show that t=0.9 is closer to it's nearest pair consistently. 
+
+
+
+here's the interpolation figures between VAE and VQVAE:
+
+vae:
+
+![sample](../../images/interpolation_vae.png)
+
+
+vqvae:
+
+![sample](../../images/interpolation_vqvae.png)
+
+
+It can be seen that the base VAE does have a smoother transition between the 2 real samples, while the VQVAE seems to take discrete jumps. It can also be seen that the VAE produces a much blurrier image. I believe this is a result of the nature of the VQVAE, having a discrete codebook.   
+
+
+**resource usage**
+| model| VAE | VQVAE | VQVAE prior| 
+|peak vram|0.85 GB |0.82 GB | 2.85 GB | 
+| approx. time per epoch | 2.8 seconds | 3.0 seconds | 14.2 seconds| 
+
+It can be seen that the VAE and VQVAE are relatively cheap to train, probably able to be done on a CPU if given a solid amount of time, the prior is more expensive and should be trained on a GPU. 
+
+As for generation, the VAE generates images in 0.02 seconds vs the 8.3 to 8.6 seconds needed by the prior and VQVAE. While the VAE is cheaper in terms of image generation, it is significantly outpaced by the VQVAE in terms of image quality generation. 
+
+
+**training curves**
+
+Here are the generated training curves from the rangpur .out files 
+
+![sample](../../images/ae_curves.png)
+
+![sample](../../images/prior_curves.png)
+
+
+The final version of the VAE was trained locally, so the plot is the earlier cluster run (latent 64, weak beta, SSIM about 0.95), not the reported VAE (latent 8, test SSIM 0.447). It can be seen that the weak KL term meant the latent space didn’t match the N(0, 1) used for sampling, so sampled latents landed where the decoder had no training, even though reconstruction was excellent, and while it performs well in reconstruction, it is much too specific for generative purposes. 
+
+The VQVAE plateaus at roughly 0.78 SSIM, well above the defined goal of 0.6.
+
+Judging from the prior cross entropy training vs validation loss, the decision to increase the epoch count likely contributed to increased overfitting, as evident by the plateau in validation while training still goes down. That being said, the model is saved at lowest validation score rather than train score, (as seen on the marked star) so this avoids using just the most recent and lowest training loss settings.  
 
