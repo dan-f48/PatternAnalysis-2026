@@ -14,12 +14,13 @@ Daniel Fuller: 48841988
 **Acceptance Criteria**: 
 
 - Mean reconstruction SSIM \> 0.6 on test set.   
-- SSIM specifically within the prostate area increases compared to the baseline.   
+- SSIM increases compared to the baseline.   
 - No codebook collapse, check that most entries within the dataset are used.   
 - Affordable training process, measured with job time and max memory allocated in RANGPUR.   
 - Successful patient level split, measured with a pre-train search of datasets.    
 - Generated samples are no closer to their nearest training slice than test slices are, measured by SSIM. This ensures the model is not just memorising.   
 - Pairwise distance across generated samples is reported, and no mode collapse is visible in an uncurated grid. 
+- Generated slices are visibly distinct from their counterparts, but still look like keras slices 
 
 **2\. Model Choice and Course Concepts**   
 **Dataset configuration**: HipMRI 2D slices (keras\_slices\_data), loaded from NiFTI, pre split into training, validation, and test sets. Images will be normalised to greyscale \[0,1\] and padded to ensure compression works.   
@@ -94,7 +95,7 @@ Loads saved pth files and generates results without retraining. This is a comman
 
 predict.py recon vae            <--- reconstruct test slices (original / reconstruction / err)
 
-predict.py recon vqcae          <--- same deal
+predict.py recon vqvae          <--- same deal
 
 predict.py generate vae [match]   <--- sample from the VAE latent
 
@@ -121,7 +122,8 @@ EVALUATION
 - nearest_ssim: memorisation detection. Each generated image is compared with every training slice to find its nearest one, and the result is compared with how close unseen test slices get to the training set. This is used only to detect near-copies. It isn't a quality score 
 - mean_pairwise_ssim: diversity statistic comparing generated samples with real slices
 - interpolate: latenet space interpolation between pairs of real training slices
-- run: evaluates one model and saves figures and a results_[model].json and [table], printing all results side by side. 
+- run(kind, temperature, quick, n_gen): evaluates one model end to end. It loads the checkpoint, computes the paired reconstruction SSIM and MSE, codebook usage, the nearest-neighbour memorisation audit, pairwise diversity and FID, and saves the sample grids, nearest-pairs figure and interpolation figure. It writes all metrics to `results_<model>.json`.
+- table: reads every `results_*.json` file in the folder and prints one markdown table with the models side by side. It is run after run has been called for each model.
 
 **Usage.** 
 edit the ```__main__``` block at the bottom of the file to choose the operation 
@@ -152,7 +154,7 @@ helper function solely to generate training curves from RANGPUR .out files. This
 **usage**
 requires this command line structure:
 
-```python plot_curves.py VAE=vae_full.out VQVAE=vqvae_full.out PRIOR=prior_full.out```
+```python curves.py VAE=vae_full.out VQVAE=vqvae_full.out PRIOR=prior_full.out```
 
 
 
@@ -180,6 +182,7 @@ conda activate torch
 python VQVAE_s4884198/train.py
 ```
 
+- the usage process should generally be train (train.py) -> evaluate (train.py) -> plot curves (curves.py) -> generate if you want to (predict.py)
 
 
 # Process / Adjustments
@@ -190,7 +193,7 @@ python VQVAE_s4884198/train.py
 ![sample](../../images/vae_sample.png)
 ![sample](../../images/vae_reconstructions.png)
 
-- increasing the beta (1e-1) and providing a warmup period for the vae decreased the specificity. In an effort to increase the fidelity of generated images, I also tried reducing the latent dimension of the trained vae. This reduced reconstruction fidelity and reduced the amount that the images looked like pure noise, but it was still unable to produce coherent generated images. 
+- increasing the beta (1e-1) and providing a warmup period for the vae decreased the specificity. In an effort to increase the fidelity of generated images, I also tried reducing the latent dimension of the trained vae. This reduced reconstruction fidelity and reduced the amount that the images looked like pure noise, but it was still unable to produce coherent generated images. This was done locally at a reduced number of epochs (40)
 
 ![sample](../../images/vae_sample_2.png)
 ![sample](../../images/vae_reconstructions_2.png)
@@ -212,7 +215,6 @@ peak VRAM: 0.82 GB
 train: (11460, 1, 256, 128), range [0.00, 1.00]
 validate: (660, 1, 256, 128), range [0.00, 1.00]
 test: (540, 1, 256, 128), range [0.00, 1.00]
-codes: train (11460, 512), val (660, 512), grid 32x16
 ```
 
 prior:
@@ -230,7 +232,6 @@ generation time for 16 images: 2.5s
 # evaluation 
 
 The following are the statistics produced by the full evaluation stat dump after running the eval code on the RANGPUR GPU cluster:
-
 
 | Model | VAE | VQ-VAE Temp 0.9 | VQ-VAE Temp 1.0 |
 | -------- | -------- | -------- | -------- |
@@ -258,7 +259,7 @@ The following are the statistics produced by the full evaluation stat dump after
 
 The three models run in the full evaluation are the baseline VAE, the VQ-VAE at a temp setting of 0.9, and the VQ-VAE at a temp setting of 1.0. The temp setting controls how random the prior's sampling is. Lower temperature picks likelier codes, so the samples are cleaner and more typical, but less varied. 
 
-**Results interpretation**
+## Results interpretation
 
 - reconstruction: The VQVAE reaches a paired test SSIM of 0.806 (MSE 0.0019). This is above the 0.6 target. The baseline reaches 0.447 (MSE 0.0065). The VAE's KL tern trades reconstruction fidelity for a latent space which is better to sample from. 
 - codebook health: all 512 codes are used on the test set, with a perplexity of 334. This implies that the codebook did not collapse, and the EMA updates and dead-code reset worked as intended. 
@@ -270,9 +271,35 @@ The three models run in the full evaluation are the baseline VAE, the VQ-VAE at 
 - temperature tradeoff: lowering the prior temperature from 1.0 to 0.9 improved the FID (207 vs 225) but reduced diversity and moved samples closer to the training set. The difference comes from 64 samples at one seed, so they are indicative and not statistically tested. 
 
 
-**samples**
+## samples
 
-These are some randomly selected samples from the vqvae temp 1.0 generation:
+Here are the uncurated samples generated from the evaluation:
+
+(obviously while the VAE results have become somewhat less noisy, they are still not coherent generations. I was unable to tune parameters / modify the process enough in the time given to produce meaningful generations from my base VAE)
+
+![sample](../../images/vae_samples_seed0.png)
+
+![sample](../../images/vae_samples_seed1.png)
+
+![sample](../../images/vae_samples_seed2.png)
+
+
+![sample](../../images/vqvae_t0.9_samples_seed0.png)
+
+![sample](../../images/vqvae_t0.9_samples_seed1.png)
+
+![sample](../../images/vqvae_t0.9_samples_seed2.png)
+
+![sample](../../images/vqvae_t1.0_samples_seed0.png)
+
+![sample](../../images/vqvae_t1.0_samples_seed1.png)
+
+![sample](../../images/vqvae_t1.0_samples_seed2.png)
+
+
+
+
+These are some selected flawed samples from the vqvae temp 1.0 generation:
 
 <img src="../../images/sample5.png" alt="Description" height="300"><img src="../../images/sample35.png" alt="Description" height="300"><img src="../../images/sample37.png" alt="Description" height="300"><img src="../../images/sample48.png" alt="Description" height="300">
 
@@ -313,8 +340,9 @@ vqvae:
 It can be seen that the base VAE does have a smoother transition between the 2 real samples, while the VQVAE seems to take discrete jumps. It can also be seen that the VAE produces a much blurrier image. I believe this is a result of the nature of the VQVAE, having a discrete codebook.   
 
 
-**resource usage**
+## resource usage
 | model| VAE | VQVAE | VQVAE prior| 
+| -------- | -------- | -------- | -------- |
 |peak vram|0.85 GB |0.82 GB | 2.85 GB | 
 | approx. time per epoch | 2.8 seconds | 3.0 seconds | 14.2 seconds| 
 
@@ -323,7 +351,7 @@ It can be seen that the VAE and VQVAE are relatively cheap to train, probably ab
 As for generation, the VAE generates images in 0.02 seconds vs the 8.3 to 8.6 seconds needed by the prior and VQVAE. While the VAE is cheaper in terms of image generation, it is significantly outpaced by the VQVAE in terms of image quality generation. 
 
 
-**training curves**
+## training curves
 
 Here are the generated training curves from the rangpur .out files 
 
@@ -338,3 +366,42 @@ The VQVAE plateaus at roughly 0.78 SSIM, well above the defined goal of 0.6.
 
 Judging from the prior cross entropy training vs validation loss, the decision to increase the epoch count likely contributed to increased overfitting, as evident by the plateau in validation while training still goes down. That being said, the model is saved at lowest validation score rather than train score, (as seen on the marked star) so this avoids using just the most recent and lowest training loss settings.  
 
+
+## success criteria assessment 
+- Mean reconstruction SSIM \> 0.6 on test set. SUCCESS, VQVAE reaches reconstruction SSIM of 0.806
+- SSIM increases compared to the baseline. SUCCESS, the final VAE reaches a SSIM of 0.447 compared to the VQVAE of 0.806. It is worth noting that the more specific VAE did achieve a reconstruction SSIM higher than both of these, however, it performed worse than both in terms of image generation, so the most recent VAE is being considered for this. 
+- No codebook collapse, check that most entries within the dataset are used. SUCCESS, the final VQVAE uses all 512 codebook entries with a perplexity of 334. 
+- Affordable training process, measured with job time and max memory allocated in RANGPUR. SUCCESS, the VAE and VQVAE are both very cheap in terms of peak vram and time per epoch, both being measuring roughly 8.5 gig peak vram and 3 seconds per epoch. The prior is more expensive comparitively, coming in at 2.85 gig peak vram and 14.2 seconds per training epoch. In terms of image generation, the 64 generated images took between 6.3 and 6.6 seconds for the VQVAE, which is much more expensive than the regular VAE, which does it in 0.02 seconds, but this is justified by the increase in generation quality (FID 207 / 225 vs 494).   
+- Successful patient level split, measured with a pre-train search of datasets. SUCCESS, the original splits don't contain any overlap. 
+actual check_overlap() output:
+```
+train 11460 slices, 31 patient ids
+validate 660 slices, 4 patient ids
+test 540 slices, 3 patient ids
+overlap train/validate: 0
+overlap train/test: 0
+overlap validate/test: 0
+```
+- Generated samples are no closer to their nearest training slice than test slices are, measured by SSIM. This ensures the model is not just memorising. PARTIAL, the mean nearest neighbour SSIM to the training set is 0.392 for t=1.0 and 0.420 for t=0.9 for generated samples, against 0.368 for unseen test slices. 17% (t=1.0) and 39% (t=0.9) of generated samples exceed the 95th percentile of the test distribution, where about 5% would be expected. Generated images are therefore somewhat closer to the training set than real unseen scans are. However, the closest any generated sample came to a training slice was SSIM 0.49, far below the range expected of a copy (expected to be above 0.8), and the nearest-pairs figures show only shared overall pelvic structure. This suggests drift towards typical anatomy rather than memorisation, but the criterion as written is not strictly satisfied. Lowering the temperature to 0.9 improves FID but increases this effect. (The VAE's 0% is not meaningful, because its samples are poor and far from every real slice.)
+- Pairwise distance across generated samples is reported, and no mode collapse is visible in an uncurated grid. SUCCESS, mean pairwise SSIM between VQ-VAE samples is 0.295 (t=1.0) and 0.320 (t=0.9), against 0.259 for real slices. Samples are slightly more similar to each other than real slices are, so diversity is somewhat reduced, but far from a collapsed generator (which would approach 1.0). The uncurated grids show varied positions, shapes and contrast. The VAE's samples are the least diverse (0.400). Pairwise SSIM is used here only as a diversity statistic.
+- Generated slices are visibly distinct from their counterparts, but still look like keras slices. SUCCESS, in the nearest-paris figures, generated images (specifically temp = 0.9 VQVAE generated ones) share similar overall structure, but differ enough to be visibly distinct. While the samples show blur, mild background noise and some asymmetry, the body outline and bone structure are recognisable as HipMRI slices. However, this is a visual judgement by a non-expert, with no clinical validation.
+
+
+## conclusion and recommendation 
+
+This was a comparison of a VQVAE with an autoregressive prior against a VAE baseline for generating 2D prostate MRI images (HipMRI), judging them on reconstructive fidelity, sample quality, diversity and memorisation. 
+
+**findings** 
+- The VQ-VAE reconstructs unseen slices well (paired test SSIM 0.806, above the 0.6 target) and uses all 512 codebook entries (perplexity 334), so the codebook did not collapse. The final VAE reached 0.447 reconstruction SSIM, after adjustments were made to increase generative output, but still was unable to produce coherent images from random latent space samples.
+- The VQ-VAE with prior generates samples much closer to the real data distribution than the VAE (FID 207 to 225 against 494, a relative comparison on 500 samples with features not trained on MRI). Its samples keep a recognisable overall structure, but show blur, mild background noise and some asymmetry.
+- No generated image is near a copy of a training slice (highest nearest-neighbour SSIM 0.49). However, generated samples sit somewhat closer to the training set than unseen real scans do (17% to 39% above the test 95th percentile, against about 5% expected), and the prior does experience overfitting (train cross-entropy about 3.47, validation about 3.97). This means that the memorisation criteria is the only one which is partially met.
+- Samples are slightly less diverse than real slices (pairwise SSIM 0.295 to 0.320 against 0.259), with no sign of mode collapse.
+
+**Recommendation**
+
+The VQ-VAE with prior is the better generator of the two models by a significant margin. It can't be recommend to release the generated cohort as a privacy-safe substitute for real patient data on this evidence alone. There is no sign of verbatim copying, but the measurements are imperfect: nearest-neighbour SSIM only detects pixel-level copies, the sample sizes are small, and no clinician has reviewed whether the anatomy is plausible. Before any release, I suggest an expert review of the data.
+
+**Limitations**
+- Results come from a single training run per model and one sampling seed per grid, with no confidence intervals.
+- The reported VAE was trained locally and the other results on the Rangpur cluster.
+- The nearest-neighbour test uses the pre-split training set, and patient overlap between splits was checked only through filename IDs.
