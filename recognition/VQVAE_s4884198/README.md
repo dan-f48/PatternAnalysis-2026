@@ -32,10 +32,10 @@ Daniel Fuller: 48841988
 **3\. Preliminary Feasibility Evidence**   
 **Data Structure**: Already pre-split into test, train, and validate data sets, with segmentation masks defining the prostate area. No overlap between sets:  
 
-![](../../images/overlap.png) 
+![](images/overlap.png) 
 **Baseline Smoke Test**: (generated samples are still essentially noise, but it’s a smoke test)  
 
-![](../../images/smoketest.png)![](../../images/smoketestsamples.png)
+![](images/smoketest.png)![](images/smoketestsamples.png)
 
 **4\. Risks, Budget and Fallback**   
 **Risks**: The risks associated with the VQ-VAE include: codebook collapse, slice level leakage inflating SSIM, SSIM reaching the threshold of 0.6 but images still being blurry, memorisation, and prior failing.   
@@ -45,7 +45,7 @@ Daniel Fuller: 48841988
 
 pdf version (converted into image):
 
-![feasiblity](../../images/feasibility.PNG)
+![feasiblity](images/feasibility.PNG)
 
 # Files
 
@@ -212,13 +212,13 @@ pip install torch==2.13.0 torchmetrics==1.9.0 torch-fidelity==0.4.0 nibabel==5.4
 - during the smoke test for the checkup, I used a small subset of the data, unaware that some of the file sizes were different (256x144). This resulted in my first complete attempt to result in an error. This was fixed with a function running in the dataloader which normalises the images to 256x128
 - in the second attempt, (running for 80 epochs) the vae showed a final SSIM of 0.952. The issue here was that the weak KL term meant the latent space didn’t match the N(0,1) used for sampling, so sampling landed where the decoder hadn’t been trained. The beta value I supplied in the KL calculation was too small (1e-3), and my vae essentially just became a regular autoencoder, so the randomly produced samples from the latent space were gibberish, just noise essentially, while the learned slices were accurately reconstructed: 
 
-![sample](../../images/vae_sample.png)
-![sample](../../images/vae_reconstructions.png)
+![sample](images/vae_sample.png)
+![sample](images/vae_reconstructions.png)
 
 - increasing the beta (1e-1) and providing a warmup period for the vae decreased the specificity. In an effort to increase the fidelity of generated images, I also tried reducing the latent dimension of the trained vae. This reduced reconstruction fidelity and reduced the amount that the images looked like pure noise, but it was still unable to produce coherent generated images. This was done locally at a reduced number of epochs (40)
 
-![sample](../../images/vae_sample_2.png)
-![sample](../../images/vae_reconstructions_2.png)
+![sample](images/vae_sample_2.png)
+![sample](images/vae_reconstructions_2.png)
 
 
 
@@ -248,7 +248,7 @@ generation time for 16 images: 2.5s
 - judging by the difference in training and validation CE, there may be some overfitting, but I would not say the model is memorising images. 
 - the end of training generation produced these samples:
 
-![sample](../../images/vq_vae_samples.png)
+![sample](images/vq_vae_samples.png)
 
 
 # evaluation 
@@ -299,48 +299,48 @@ Here are the uncurated samples generated from the evaluation:
 
 (obviously while the VAE results have become somewhat less noisy, they are still not coherent generations. I was unable to tune parameters / modify the process enough in the time given to produce meaningful generations from my base VAE)
 
-![sample](../../images/vae_samples_seed0.png)
+![sample](images/vae_samples_seed0.png)
 
-![sample](../../images/vae_samples_seed1.png)
+![sample](images/vae_samples_seed1.png)
 
-![sample](../../images/vae_samples_seed2.png)
+![sample](images/vae_samples_seed2.png)
 
 
-![sample](../../images/vqvae_t0.9_samples_seed0.png)
+![sample](images/vqvae_t0.9_samples_seed0.png)
 
-![sample](../../images/vqvae_t0.9_samples_seed1.png)
+![sample](images/vqvae_t0.9_samples_seed1.png)
 
-![sample](../../images/vqvae_t0.9_samples_seed2.png)
+![sample](images/vqvae_t0.9_samples_seed2.png)
 
-![sample](../../images/vqvae_t1.0_samples_seed0.png)
+![sample](images/vqvae_t1.0_samples_seed0.png)
 
-![sample](../../images/vqvae_t1.0_samples_seed1.png)
+![sample](images/vqvae_t1.0_samples_seed1.png)
 
-![sample](../../images/vqvae_t1.0_samples_seed2.png)
+![sample](images/vqvae_t1.0_samples_seed2.png)
 
 
 
 
 These are some selected flawed samples from the vqvae temp 1.0 generation:
 
-<img src="../../images/sample5.png" alt="Description" height="300"><img src="../../images/sample35.png" alt="Description" height="300"><img src="../../images/sample37.png" alt="Description" height="300"><img src="../../images/sample48.png" alt="Description" height="300">
+<img src="images/sample5.png" alt="Description" height="300"><img src="images/sample35.png" alt="Description" height="300"><img src="images/sample37.png" alt="Description" height="300"><img src="images/sample48.png" alt="Description" height="300">
 
 
 Obviously these images aren't perfect. All of them contain a degree of blur, and they are slightly too asymmetrical when compared to real human slices. There is a very slight noise seen in the backgrounds, particularly on the bottom side of the generated images. It seems that the noise likely points to the decoder, while the asymmetry likely points to the prior sampling codebook entries which don't perfectly fit together. Ultimately though, these do look like the keras slices in my opinion (which is by no means that of an expert, just basic observations).
 
 Here's the generated nearest pairs:
 
-![sample](../../images/vae_pairs.png)
+![sample](images/vae_pairs.png)
 
 The VAE nearest pairs are not relevant, due to the flawed generation 
 
 temp 1.0
 
-![sample](../../images/temp1_pairs.png)
+![sample](images/temp1_pairs.png)
 
 temp 0.9
 
-![sample](../../images/temp0.9_pairs.png)
+![sample](images/temp0.9_pairs.png)
 
 
 As for the VQVAE nearest pairs. The temp 0.9 nearest pairs do look observably closer to their closest counterparts than the temp 1.0 ones, but while the temp 0.9 pairs do contain similarities in overall structure, I don't think it can be said they are copies. I beleive there is enough observable difference in both sets. The mean nearest neighbour SSIM for t=0.9 is 0.42, while it is 0.39 at t=1.0. This does show that t=0.9 is closer to it's nearest pair consistently. 
@@ -351,12 +351,12 @@ here's the interpolation figures between VAE and VQVAE:
 
 vae:
 
-![sample](../../images/interpolation_vae.png)
+![sample](images/interpolation_vae.png)
 
 
 vqvae:
 
-![sample](../../images/interpolation_vqvae.png)
+![sample](images/interpolation_vqvae.png)
 
 
 It can be seen that the base VAE does have a smoother transition between the 2 real samples, while the VQVAE seems to take discrete jumps. It can also be seen that the VAE produces a much blurrier image. I believe this is a result of the nature of the VQVAE, having a discrete codebook.   
@@ -377,9 +377,9 @@ As for generation, the VAE generates images in 0.02 seconds vs the 8.3 to 8.6 se
 
 Here are the generated training curves from the rangpur .out files 
 
-![sample](../../images/ae_curves.png)
+![sample](images/ae_curves.png)
 
-![sample](../../images/prior_curves.png)
+![sample](images/prior_curves.png)
 
 
 The final version of the VAE was trained locally, so the plot is the earlier cluster run (latent 64, weak beta, SSIM about 0.95), not the reported VAE (latent 8, test SSIM 0.447). It can be seen that the weak KL term meant the latent space didn’t match the N(0, 1) used for sampling, so sampled latents landed where the decoder had no training, even though reconstruction was excellent, and while it performs well in reconstruction, it is much too specific for generative purposes. 
