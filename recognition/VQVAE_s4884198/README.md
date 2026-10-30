@@ -255,3 +255,30 @@ The three models run in the full evaluation are the baseline VAE, the VQ-VAE at 
 - limitations: nearest neighbour SSIM only detects pixel level near copies, not shared anatomy / features. Quantitative metrics can't really establish clinical plausability. The prior shows some overfitting (train cross entropy 3.47 vs validation 3.97)
 - temperature tradeoff: lowering the prior temperature from 1.0 to 0.9 improved the FID (207 vs 225) but reduced diversity and moved samples closer to the training set. The difference comes from 64 samples at one seed, so they are indicative and not statistically tested. 
 
+
+**samples**
+
+These are some randomly selected samples from the vqvae temp 1.0 generation:
+
+<img src="../../images/sample5.png" alt="Description" height="300"><img src="../../images/sample35.png" alt="Description" height="300"><img src="../../images/sample37.png" alt="Description" height="300"><img src="../../images/sample48.png" alt="Description" height="300">
+
+
+Obviously these images aren't perfect. All of them contain a degree of blur, and they are slightly too asymmetrical when compared to real human slices. There is a very slight noise seen in the backgrounds, particularly on the bottom side of the generated images. It seems that the noise likely points to the decoder, while the asymmetry likely points to the prior sampling codebook entries which don't perfectly fit together. Ultimately though, these do look like the keras slices in my opinion (which is by no means that of an expert, just basic observations).
+
+Here's the generated nearest pairs:
+
+![sample](../../images/vae_pairs.png)
+
+The VAE nearest pairs are not relevant, due to the flawed generation 
+
+temp 1.0
+
+![sample](../../images/temp1_pairs.png)
+
+temp 0.9
+
+![sample](../../images/temp0.9_pairs.png)
+
+
+As for the VQVAE nearest pairs. The temp 0.9 nearest pairs do look observably closer to their closest counterparts than the temp 1.0 ones, but while the temp 0.9 pairs do contain similarities in overall structure, I don't think it can be said they are copies. I beleive there is enough observable difference in both sets. 
+
