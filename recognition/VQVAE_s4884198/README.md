@@ -184,6 +184,28 @@ python VQVAE_s4884198/train.py
 
 - the usage process should generally be train (train.py) -> evaluate (train.py) -> plot curves (curves.py) -> generate if you want to (predict.py)
 
+## Dependencies
+
+Tested with Python 3.11.15. Install into a fresh environment:
+
+```bash
+pip install torch==2.13.0 torchmetrics==1.9.0 torch-fidelity==0.4.0 nibabel==5.4.2 numpy==2.4.6 matplotlib==3.11.1 tqdm==4.70.1
+```
+
+| Package | Version | Used for |
+|---|---|---|
+| torch | 2.13.0 (+cu130 build) | models, training, data loaders |
+| torchmetrics | 1.9.0 | SSIM and FID |
+| torch-fidelity | 0.4.0 | Inception feature extractor behind FID |
+| nibabel | 5.4.2 | reading NIfTI files |
+| numpy | 2.4.6 | array handling in `dataset.py` (not used in `modules.py`) |
+| matplotlib | 3.11.1 | figures |
+| tqdm | 4.70.1 | progress bars |
+
+- Results were produced on Rangpur cluster. The final VAE reported in the results was trained locally.
+- FID downloads the pretrained Inception weights on first use, so it needs internet access once (run it on the login node to cache them).
+- `modules.py` imports only PyTorch, as required in the task sheet.
+
 
 # Process / Adjustments
 ### baseline vae:
