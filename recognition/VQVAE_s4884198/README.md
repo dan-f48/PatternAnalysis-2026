@@ -171,12 +171,12 @@ python VQVAE_s4884198/train.py
 # Process / Adjustments
 ### baseline vae:
 - during the smoke test for the checkup, I used a small subset of the data, unaware that some of the file sizes were different (256x144). This resulted in my first complete attempt to result in an error. This was fixed with a function running in the dataloader which normalises the images to 256x128
-- in the second attempt, (running for 80 epochs) the vae showed a final SSIM of 0.952. The issue here was that the weak KL term meant the latent space didn’t match the N(0,1) used for sampling, so sampling landed where the decoder hadn’t been trained. The beta value I supplied in the KL calculation was too small, and my vae essentially just became a regular autoencoder, so the randomly produced samples from the latent space were gibberish, just noise essentially, while the learned slices were accurately reconstructed: 
+- in the second attempt, (running for 80 epochs) the vae showed a final SSIM of 0.952. The issue here was that the weak KL term meant the latent space didn’t match the N(0,1) used for sampling, so sampling landed where the decoder hadn’t been trained. The beta value I supplied in the KL calculation was too small (1e-3), and my vae essentially just became a regular autoencoder, so the randomly produced samples from the latent space were gibberish, just noise essentially, while the learned slices were accurately reconstructed: 
 
 ![sample](../../images/vae_sample.png)
 ![sample](../../images/vae_reconstructions.png)
 
-- increasing the beta and providing a warmup period for the vae decreased the specificity. In an effort to increase the fidelity of generated images, I also tried reducing the latent dimension of the trained vae. This reduced reconstruction fidelity and reduced the amount that the images looked like pure noise, but it was still unable to produce coherent generated images. 
+- increasing the beta (1e-1) and providing a warmup period for the vae decreased the specificity. In an effort to increase the fidelity of generated images, I also tried reducing the latent dimension of the trained vae. This reduced reconstruction fidelity and reduced the amount that the images looked like pure noise, but it was still unable to produce coherent generated images. 
 
 ![sample](../../images/vae_sample_2.png)
 ![sample](../../images/vae_reconstructions_2.png)
@@ -241,4 +241,17 @@ The following are the statistics produced by the full evaluation stat dump after
 | fid  | 493.6816101074219  | 206.61737060546875  | 225.224609375 |
 | fid_n  |500| 500 | 500 |
 
+
+The three models run in the full evaluation are the baseline VAE, the VQ-VAE at a temp setting of 0.9, and the VQ-VAE at a temp setting of 1.0. The temp setting controls how random the prior's sampling is. Lower temperature picks likelier codes, so the samples are cleaner and more typical, but less varied. 
+
+**Results interpretation**
+
+- reconstruction: The VQVAE reaches a paired test SSIM of 0.806 (MSE 0.0019). This is above the 0.6 target. The baseline reaches 0.447 (MSE 0.0065). The VAE's KL tern trades reconstruction fidelity for a latent space which is better to sample from. 
+- codebook health: all 512 codes are used on the test set, with a perplexity of 334. This implies that the codebook did not collapse, and the EMA updates and dead-code reset worked as intended. 
+- generation quality: the VQVAE with prior has a much lower FID than the VAE (207 and 225 vs 494). Both VQVAE results are still high in absolute terms, FID was computed on only 500 samples, and the inception features are not trained on MRI. FID is therefore used only as a relative comparison and doesn't really show the samples anatomical accuracy.
+- memorisation: No generated image is close to a copy of a training slice. The highest nearest neighbour image is 0.49 SSIM, which is far from being a duplicate, where you would expect the SSIM to be higher than 0.8. That being said, 17% in t=1.0 and 39% in t=0.9 of VQVAE samples sit above the 95th percentile of unseen test slices, when 5 is expected by nature. This means that generated images are somewhat closer to the training set than real unseen scans are. SSIM favours smoot, typical image generation, so this is consistent with drift towards typical anatomy rather than copying, but it is inconclusive. VAE scores 0 just because it's generally not producing accurate images. 
+-  diversity: pairwise SSIM between VQVAE samples (0.295 at t=1.0 and 0.320 at t=0.9) is higher than between real slices (0.259), so samples are slightly less varied than real data but not collapsed. The VAE samples are the most similar to each other (0.4), which fits blurry, near identical outputs. 
+- cost: generating 64 images takes 8.3 to 8.6 seconds for the VQVAE (512 sequential prior steps) vs 0.02 seconds for the VAE. Training memory was 0.82 gigs for the VQVAE and 2.85 gigs for the prior. 
+- limitations: nearest neighbour SSIM only detects pixel level near copies, not shared anatomy / features. Quantitative metrics can't really establish clinical plausability. The prior shows some overfitting (train cross entropy 3.47 vs validation 3.97)
+- temperature tradeoff: lowering the prior temperature from 1.0 to 0.9 improved the FID (207 vs 225) but reduced diversity and moved samples closer to the training set. The difference comes from 64 samples at one seed, so they are indicative and not statistically tested. 
 
